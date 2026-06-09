@@ -4,6 +4,10 @@ import { clearPageCache } from "../utils/pdfEngine";
 
 export type DarkMode = "off" | "invert" | "sepia";
 
+function loadSidebarWidth(): number {
+  return Math.max(150, Math.min(500, Number(localStorage.getItem("sidebar-width")) || 220));
+}
+
 export interface PdfStore {
   // ── Loaded document ──────────────────────────────────────────────────────
   /** Raw bytes of the currently open file (used to reload into pdf-lib) */
@@ -26,8 +30,8 @@ export interface PdfStore {
   searchResultIndex: number;
 
   // ── UI panels ────────────────────────────────────────────────────────────
-  sidebarOpen: boolean;
   activeTool: "none" | "search" | "metadata" | "thumbnails";
+  sidebarWidth: number;
   searchFocusToken: number; // increments each time search input should be focused
 
   // ── Actions ──────────────────────────────────────────────────────────────
@@ -40,8 +44,8 @@ export interface PdfStore {
   setSearchResults: (pages: number[], index: number) => void;
   nextSearchResult: () => void;
   prevSearchResult: () => void;
-  setSidebarOpen: (open: boolean) => void;
   setActiveTool: (tool: PdfStore["activeTool"]) => void;
+  setSidebarWidth: (w: number) => void;
   focusSearch: () => void;
 }
 
@@ -59,8 +63,8 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
   searchResults: [],
   searchResultIndex: 0,
 
-  sidebarOpen: true,
   activeTool: "thumbnails",
+  sidebarWidth: loadSidebarWidth(),
   searchFocusToken: 0,
 
   setFile: (bytes, doc, name) => {
@@ -120,13 +124,16 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
     setCurrentPage(searchResults[prev]);
   },
 
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-
   setActiveTool: (tool) => set({ activeTool: tool }),
+
+  setSidebarWidth: (w) => {
+    const clamped = Math.max(150, Math.min(500, w));
+    localStorage.setItem("sidebar-width", String(clamped));
+    set({ sidebarWidth: clamped });
+  },
 
   focusSearch: () => set((s) => ({
     activeTool: "search",
-    sidebarOpen: true,
     searchFocusToken: s.searchFocusToken + 1,
   })),
 }));

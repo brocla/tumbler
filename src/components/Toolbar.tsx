@@ -8,8 +8,8 @@ const ZOOM_PRESETS = [0.10, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 
 export default function Toolbar() {
   const {
-    pdfDoc, fileName, pageCount, currentPage, zoom, darkMode, sidebarOpen,
-    setFile, setCurrentPage, setZoom, setDarkMode, setSidebarOpen, setActiveTool,
+    pdfDoc, fileName, pageCount, currentPage, zoom, darkMode,
+    setFile, setCurrentPage, setZoom, setDarkMode, setActiveTool,
     activeTool,
   } = usePdfStore();
 
@@ -28,12 +28,7 @@ export default function Toolbar() {
   };
 
   const toggleSearch = () => {
-    if (activeTool === "search") {
-      setActiveTool("thumbnails");
-    } else {
-      setActiveTool("search");
-      setSidebarOpen(true);
-    }
+    setActiveTool(activeTool === "search" ? "none" : "search");
   };
 
   const cycleMode = () => {
@@ -46,18 +41,6 @@ export default function Toolbar() {
 
   return (
     <div className="toolbar">
-      {/* Sidebar toggle */}
-      <button
-        className="icon-btn"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        title="Toggle sidebar"
-        aria-label="Toggle sidebar"
-      >
-        ☰
-      </button>
-
-      <div className="toolbar-divider" />
-
       {/* File open */}
       <button onClick={handleOpen}>Open PDF</button>
 
