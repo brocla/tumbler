@@ -7,7 +7,8 @@
  */
 
 import * as pdfjsLib from "pdfjs-dist";
-import { PDFDocument } from "pdf-lib";
+import type { TextItem, TextContent } from "pdfjs-dist/types/src/display/api";
+import { PDFDocument, degrees } from "pdf-lib";
 
 // ---------------------------------------------------------------------------
 // PDF.js worker setup
@@ -89,7 +90,7 @@ export async function renderPage(
   canvas: HTMLCanvasElement,
   scale: number
 ) {
-  const fp = doc.fingerprints[0];
+  const fp = doc.fingerprints[0] ?? "";
   const key = cacheKey(fp, pageNumber, scale);
   let bitmap = PAGE_CACHE.get(key);
 
@@ -111,7 +112,7 @@ export function prefetchPages(
   scale: number,
   radius = 2
 ) {
-  const fp = doc.fingerprints[0];
+  const fp = doc.fingerprints[0] ?? "";
   const lo = Math.max(1, centerPage - radius);
   const hi = Math.min(doc.numPages, centerPage + radius);
   for (let p = lo; p <= hi; p++) {
@@ -167,7 +168,7 @@ const _measureCtx = _measureCanvas.getContext("2d")!;
  * proportional accuracy.
  */
 function xAtChar(
-  item: pdfjsLib.TextItem,
+  item: TextItem,
   charIdx: number,
   span: HTMLSpanElement | null
 ): number {
@@ -177,7 +178,7 @@ function xAtChar(
   let ratio = charIdx / item.str.length; // character-count fallback
 
   if (span) {
-    const font = getComputedStyle(span).font;
+    const font = getComputedStyle(span).font ?? "";
     if (font) {
       _measureCtx.font = font;
       const totalW = _measureCtx.measureText(item.str).width;
@@ -192,7 +193,7 @@ function xAtChar(
 }
 
 function applyHighlights(
-  items: pdfjsLib.TextContent["items"],
+  items: TextContent["items"],
   textContainer: HTMLDivElement,
   highlightContainer: HTMLDivElement,
   viewport: ReturnType<pdfjsLib.PDFPageProxy["getViewport"]>,
@@ -202,7 +203,7 @@ function applyHighlights(
 
   // Filter to real text items only (skip TextMarkedContent markers).
   const textItems = items.filter(
-    (item): item is pdfjsLib.TextItem => "str" in item && item.str.length > 0
+    (item): item is TextItem => "str" in item && item.str.length > 0
   );
 
   // Collect rendered spans in DOM order — PDF.js creates one span per text item.
@@ -394,11 +395,11 @@ export async function splitPdf(
 export async function rotatePage(
   bytes: Uint8Array,
   pageIndex: number, // 0-indexed
-  degrees: 90 | 180 | 270
+  deg: 90 | 180 | 270
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(bytes.slice());
   const page = pdfDoc.getPage(pageIndex);
-  page.setRotation({ type: "degrees", angle: (page.getRotation().angle + degrees) % 360 });
+  page.setRotation(degrees((page.getRotation().angle + deg) % 360));
   return pdfDoc.save();
 }
 
