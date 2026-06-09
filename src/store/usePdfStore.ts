@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { clearPageCache } from "../utils/pdfEngine";
 
 export type DarkMode = "off" | "invert" | "sepia";
 
@@ -27,6 +28,7 @@ export interface PdfStore {
   // ── UI panels ────────────────────────────────────────────────────────────
   sidebarOpen: boolean;
   activeTool: "none" | "search" | "metadata" | "thumbnails";
+  searchFocusToken: number; // increments each time search input should be focused
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setFile: (bytes: Uint8Array, doc: PDFDocumentProxy, name: string) => void;
@@ -40,6 +42,7 @@ export interface PdfStore {
   prevSearchResult: () => void;
   setSidebarOpen: (open: boolean) => void;
   setActiveTool: (tool: PdfStore["activeTool"]) => void;
+  focusSearch: () => void;
 }
 
 export const usePdfStore = create<PdfStore>((set, get) => ({
@@ -58,8 +61,10 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
 
   sidebarOpen: true,
   activeTool: "thumbnails",
+  searchFocusToken: 0,
 
-  setFile: (bytes, doc, name) =>
+  setFile: (bytes, doc, name) => {
+    clearPageCache();
     set({
       fileBytes: bytes,
       pdfDoc: doc,
@@ -69,7 +74,8 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
       searchQuery: "",
       searchResults: [],
       searchResultIndex: 0,
-    }),
+    });
+  },
 
   clearFile: () =>
     set({
@@ -88,7 +94,7 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
     set({ currentPage: Math.max(1, Math.min(page, pageCount)) });
   },
 
-  setZoom: (zoom) => set({ zoom: Math.max(0.25, Math.min(zoom, 4.0)) }),
+  setZoom: (zoom) => set({ zoom: Math.max(0.10, Math.min(zoom, 4.0)) }),
 
   setDarkMode: (mode) => set({ darkMode: mode }),
 
@@ -117,4 +123,10 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
+
+  focusSearch: () => set((s) => ({
+    activeTool: "search",
+    sidebarOpen: true,
+    searchFocusToken: s.searchFocusToken + 1,
+  })),
 }));

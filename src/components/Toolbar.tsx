@@ -4,7 +4,7 @@ import { openPdfFile } from "../utils/fileHelpers";
 import { loadPdfBytes } from "../utils/pdfEngine";
 import type { DarkMode } from "../store/usePdfStore";
 
-const ZOOM_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
+const ZOOM_PRESETS = [0.10, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 
 export default function Toolbar() {
   const {
@@ -114,7 +114,7 @@ export default function Toolbar() {
               const prev = ZOOM_PRESETS[Math.max(0, idx - 1)];
               setZoom(prev);
             }}
-            disabled={zoom <= 0.25}
+            disabled={zoom <= 0.10}
             aria-label="Zoom out"
           >
             −

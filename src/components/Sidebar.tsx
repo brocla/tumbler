@@ -4,7 +4,7 @@ import SearchPanel from "./SearchPanel";
 import MetadataPanel from "./MetadataPanel";
 
 export default function Sidebar() {
-  const { pdfDoc, activeTool, setActiveTool } = usePdfStore();
+  const { pdfDoc, activeTool, setActiveTool, focusSearch } = usePdfStore();
 
   if (!pdfDoc) return <div className="sidebar" />;
 
@@ -17,7 +17,7 @@ export default function Sidebar() {
             role="tab"
             aria-selected={activeTool === tab}
             className={`sidebar-tab ${activeTool === tab ? "active" : ""}`}
-            onClick={() => setActiveTool(tab)}
+            onClick={() => tab === "search" ? focusSearch() : setActiveTool(tab)}
           >
             {tab === "thumbnails" ? "Pages" : tab === "search" ? "Search" : "Info"}
           </div>

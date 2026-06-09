@@ -1,4 +1,4 @@
-# Tumbler
+# Tumbler  ---  Under Development
 
 A personal PDF viewer and editor built with Tauri, React, PDF.js, and pdf-lib.
 Runs on Windows 10 and Windows 11. No cloud hosting required.

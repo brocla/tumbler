@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "PDF Tool",
+        "title": "Tumbler",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

@@ -10,8 +10,9 @@ function Thumbnail({ pageNumber }: { pageNumber: number }) {
 
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return;
-    renderPage(pdfDoc, pageNumber, canvasRef.current, THUMB_SCALE);
+    renderPage(pdfDoc, pageNumber, canvasRef.current, THUMB_SCALE).catch(console.error);
   }, [pdfDoc, pageNumber]);
+  // Note: zoom intentionally excluded — thumbnails always render at THUMB_SCALE
 
   return (
     <div

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { usePdfStore } from "../store/usePdfStore";
 import { searchAllPages } from "../utils/pdfEngine";
 
@@ -10,6 +10,17 @@ export default function SearchPanel() {
   } = usePdfStore();
 
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const searchFocusToken = usePdfStore((s) => s.searchFocusToken);
+
+  // Focus and select-all every time focusSearch() is called (token increments)
+  useEffect(() => {
+    if (searchFocusToken === 0) return; // skip initial render
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [searchFocusToken]);
 
   const runSearch = async (q: string) => {
     setSearchQuery(q);
@@ -28,10 +39,10 @@ export default function SearchPanel() {
     <div className="search-panel">
       <input
         type="search"
+        ref={inputRef}
         placeholder="Search document…"
         value={searchQuery}
         onChange={(e) => runSearch(e.target.value)}
-        autoFocus
         style={{ width: "100%" }}
       />
 
