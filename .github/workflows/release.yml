@@ -1,0 +1,125 @@
+# .github/workflows/release.yml
+#
+# Triggered when you push a version tag (e.g. v0.2.0).
+# Builds the Tauri app for Windows, submits the installer to
+# SignPath Foundation for free code signing, then attaches the
+# signed artifact to the GitHub Release.
+#
+# ── Setup required ────────────────────────────────────────────────────────
+# 1. Sign up at https://about.signpath.io/product/foundation
+# 2. Link your GitHub repo and get your:
+#      SIGNPATH_ORGANIZATION_ID
+#      SIGNPATH_PROJECT_SLUG       (e.g. "pdf-tool")
+#      SIGNPATH_SIGNING_POLICY_SLUG (e.g. "release-signing")
+# 3. Add those three values as GitHub Actions secrets in your repo.
+# 4. SignPath will also inject SIGNPATH_API_TOKEN automatically via their
+#    GitHub App once the repo is approved.
+# ─────────────────────────────────────────────────────────────────────────
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build Tauri app (unsigned)
+        # TAURI_SIGNING_PRIVATE_KEY is intentionally NOT set here —
+        # we let SignPath do all signing after the build.
+        run: npm run tauri build -- --bundles nsis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Disable Tauri's built-in signing so SignPath owns it
+          TAURI_SIGNING_PRIVATE_KEY: ""
+
+      - name: Upload unsigned installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          # Tauri NSIS output lands here
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  sign-windows:
+    name: Sign (SignPath Foundation)
+    needs: build-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download unsigned installer
+        uses: actions/download-artifact@v4
+        with:
+          name: unsigned-installer
+          path: unsigned/
+
+      - name: Submit to SignPath for signing
+        id: signpath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: "installer"
+          github-artifact-id: ${{ needs.build-windows.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/
+
+      - name: Upload signed installer as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-installer
+          path: signed/**/*.exe
+
+  release:
+    name: Publish GitHub Release
+    needs: sign-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download signed installer
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-installer
+          path: release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/**
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,331 @@
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --color-bg:          #1a1a1a;
+  --color-surface:     #242424;
+  --color-surface-2:   #2e2e2e;
+  --color-border:      rgba(255,255,255,0.08);
+  --color-text:        #e8e8e8;
+  --color-text-muted:  #888;
+  --color-accent:      #5b8af0;
+  --color-accent-dim:  rgba(91,138,240,0.15);
+  --color-danger:      #e05a5a;
+
+  --toolbar-h:         42px;
+  --sidebar-w:         220px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  /* Prevent text selection UI fighting with PDF interaction */
+  user-select: none;
+}
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+.app-shell {
+  display: grid;
+  grid-template-rows: var(--toolbar-h) 1fr;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-areas:
+    "toolbar toolbar"
+    "sidebar viewer";
+  height: 100%;
+}
+
+.app-shell.sidebar-closed {
+  grid-template-columns: 0 1fr;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+.toolbar {
+  grid-area: toolbar;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.toolbar-spacer { flex: 1; }
+
+.toolbar-filename {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+.sidebar {
+  grid-area: sidebar;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.sidebar-tab {
+  flex: 1;
+  padding: 8px 4px;
+  font-size: 11px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.sidebar-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* ── Viewer ─────────────────────────────────────────────────────────────── */
+.viewer-area {
+  grid-area: viewer;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  gap: 12px;
+  background: var(--color-bg);
+}
+
+.pdf-canvas-wrapper {
+  position: relative;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.5);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* ── Dark mode filters applied to the canvas wrapper ────────────────────── */
+.dark-mode-invert .pdf-canvas-wrapper canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.dark-mode-sepia .pdf-canvas-wrapper canvas {
+  filter: sepia(0.6) brightness(0.9);
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--color-text-muted);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  opacity: 0.3;
+}
+
+.empty-state h2 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.empty-state p {
+  font-size: 13px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+
+button:hover { background: rgba(255,255,255,0.07); }
+button:active { background: rgba(255,255,255,0.12); }
+button:disabled { opacity: 0.35; cursor: default; }
+
+button.icon-btn {
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+}
+
+button.accent {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+  border: 1px solid rgba(91,138,240,0.3);
+}
+
+button.accent:hover { background: rgba(91,138,240,0.25); }
+
+/* ── Inputs ─────────────────────────────────────────────────────────────── */
+input[type="text"],
+input[type="number"],
+input[type="search"] {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 4px 8px;
+  height: 28px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus { border-color: var(--color-accent); }
+
+/* ── Search panel ───────────────────────────────────────────────────────── */
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search-result-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.search-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-page-item {
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  transition: background 0.1s, color 0.1s;
+}
+
+.search-page-item:hover { background: rgba(255,255,255,0.06); color: var(--color-text); }
+.search-page-item.active { background: var(--color-accent-dim); color: var(--color-accent); }
+
+/* ── Thumbnail grid ─────────────────────────────────────────────────────── */
+.thumbnail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.thumbnail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.thumbnail-item:hover { border-color: rgba(91,138,240,0.4); }
+.thumbnail-item.active { border-color: var(--color-accent); }
+.thumbnail-item canvas { border-radius: 2px; }
+.thumbnail-item span { font-size: 11px; color: var(--color-text-muted); }
+
+/* ── Metadata panel ─────────────────────────────────────────────────────── */
+.metadata-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metadata-field label {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metadata-field input {
+  width: 100%;
+}
+
+/* ── Page number input in toolbar ───────────────────────────────────────── */
+.page-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.page-input-group input { width: 44px; text-align: center; }
+.page-input-group span { color: var(--color-text-muted); }
+
+/* ── Zoom select ────────────────────────────────────────────────────────── */
+select.zoom-select {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 12px;
+  padding: 3px 6px;
+  height: 28px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
