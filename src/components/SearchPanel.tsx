@@ -6,7 +6,7 @@ export default function SearchPanel() {
   const {
     pdfDoc, searchQuery, searchResults, searchResultIndex,
     setSearchQuery, setSearchResults, nextSearchResult, prevSearchResult,
-    setCurrentPage,
+    requestJumpToPage,
   } = usePdfStore();
 
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function SearchPanel() {
     setLoading(true);
     const pages = await searchAllPages(pdfDoc, q);
     setSearchResults(pages, 0);
-    if (pages.length) setCurrentPage(pages[0]);
+    if (pages.length) requestJumpToPage(pages[0]);
     setLoading(false);
   };
 
@@ -43,6 +43,11 @@ export default function SearchPanel() {
         placeholder="Search document…"
         value={searchQuery}
         onChange={(e) => runSearch(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            if (e.shiftKey) prevSearchResult(); else nextSearchResult();
+          }
+        }}
         style={{ width: "100%" }}
       />
 
@@ -71,7 +76,7 @@ export default function SearchPanel() {
               className={`search-page-item ${idx === searchResultIndex ? "active" : ""}`}
               onClick={() => {
                 usePdfStore.getState().setSearchResults(searchResults, idx);
-                setCurrentPage(page);
+                requestJumpToPage(page);
               }}
             >
               Page {page}
