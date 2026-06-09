@@ -126,6 +126,11 @@ export default function Toolbar() {
             onChange={(e) => setZoom(parseFloat(e.target.value))}
             aria-label="Zoom level"
           >
+            {!ZOOM_PRESETS.includes(zoom) && (
+              <option key="custom" value={zoom}>
+                {Math.round(zoom * 100)}%
+              </option>
+            )}
             {ZOOM_PRESETS.map((z) => (
               <option key={z} value={z}>
                 {Math.round(z * 100)}%
