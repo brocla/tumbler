@@ -5,7 +5,7 @@ import { renderPage } from "../utils/pdfEngine";
 const THUMB_SCALE = 0.18;
 
 function Thumbnail({ pageNumber }: { pageNumber: number }) {
-  const { pdfDoc, currentPage, setCurrentPage } = usePdfStore();
+  const { pdfDoc, currentPage, requestJumpToPage } = usePdfStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -17,7 +17,7 @@ function Thumbnail({ pageNumber }: { pageNumber: number }) {
   return (
     <div
       className={`thumbnail-item ${currentPage === pageNumber ? "active" : ""}`}
-      onClick={() => setCurrentPage(pageNumber)}
+      onClick={() => requestJumpToPage(pageNumber)}
       role="button"
       aria-label={`Go to page ${pageNumber}`}
     >

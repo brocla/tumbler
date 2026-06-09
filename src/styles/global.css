@@ -170,24 +170,35 @@ html.sidebar-resizing * {
   flex-direction: column;
   align-items: center;
   padding: 24px 16px;
-  gap: 12px;
+  gap: 16px;         /* matches PAGE_GAP in viewerConstants.ts */
   background: var(--color-bg);
 }
 
-.pdf-canvas-wrapper {
+.page-slot {
   position: relative;
+  flex-shrink: 0;
   box-shadow: 0 2px 16px rgba(0,0,0,0.5);
   border-radius: var(--radius-sm);
   overflow: hidden;
+  background: white;
+}
+
+.page-slot canvas {
+  display: block;
+}
+
+.page-placeholder {
+  background: var(--color-surface);
   flex-shrink: 0;
 }
 
+
 /* ── Dark mode filters applied to the canvas wrapper ────────────────────── */
-.dark-mode-invert .pdf-canvas-wrapper canvas {
+.dark-mode-invert .page-slot canvas {
   filter: invert(1) hue-rotate(180deg);
 }
 
-.dark-mode-sepia .pdf-canvas-wrapper canvas {
+.dark-mode-sepia .page-slot canvas {
   filter: sepia(0.6) brightness(0.9);
 }
 

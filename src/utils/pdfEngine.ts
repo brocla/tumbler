@@ -31,6 +31,20 @@ export async function loadPdfBytes(bytes: Uint8Array) {
   return doc;
 }
 
+/** Return natural (scale=1) dimensions for every page. Called once per document. */
+export async function getPageDimensions(
+  doc: pdfjsLib.PDFDocumentProxy
+): Promise<Array<{ width: number; height: number }>> {
+  const dims: Array<{ width: number; height: number }> = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const vp = page.getViewport({ scale: 1 });
+    dims.push({ width: vp.width, height: vp.height });
+    page.cleanup();
+  }
+  return dims;
+}
+
 // ---------------------------------------------------------------------------
 // Page render cache
 //

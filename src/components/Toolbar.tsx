@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { usePdfStore } from "../store/usePdfStore";
 import { openPdfFile } from "../utils/fileHelpers";
-import { loadPdfBytes } from "../utils/pdfEngine";
+import { loadPdfBytes, getPageDimensions } from "../utils/pdfEngine";
 import type { DarkMode } from "../store/usePdfStore";
 
 const ZOOM_PRESETS = [0.10, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
@@ -9,8 +9,8 @@ const ZOOM_PRESETS = [0.10, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 export default function Toolbar() {
   const {
     pdfDoc, fileName, pageCount, currentPage, zoom, darkMode,
-    setFile, setCurrentPage, setZoom, setDarkMode, setActiveTool,
-    activeTool,
+    setFile, setPageDimensions, setZoom, setDarkMode, setActiveTool,
+    activeTool, requestJumpToPage,
   } = usePdfStore();
 
   const handleOpen = useCallback(async () => {
@@ -18,12 +18,15 @@ export default function Toolbar() {
     if (!result) return;
     const doc = await loadPdfBytes(result.bytes);
     setFile(result.bytes, doc, result.name);
-  }, [setFile]);
+    // Fetch natural page dimensions once after load
+    const dims = await getPageDimensions(doc);
+    setPageDimensions(dims);
+  }, [setFile, setPageDimensions]);
 
   const handlePageInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const val = parseInt((e.target as HTMLInputElement).value, 10);
-      if (!isNaN(val)) setCurrentPage(val);
+      if (!isNaN(val)) requestJumpToPage(val);
     }
   };
 
@@ -58,7 +61,7 @@ export default function Toolbar() {
           {/* Page navigation */}
           <button
             className="icon-btn"
-            onClick={() => setCurrentPage(currentPage - 1)}
+            onClick={() => requestJumpToPage(currentPage - 1)}
             disabled={currentPage <= 1}
             aria-label="Previous page"
           >
@@ -80,7 +83,7 @@ export default function Toolbar() {
 
           <button
             className="icon-btn"
-            onClick={() => setCurrentPage(currentPage + 1)}
+            onClick={() => requestJumpToPage(currentPage + 1)}
             disabled={currentPage >= pageCount}
             aria-label="Next page"
           >

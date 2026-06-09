@@ -10,33 +10,36 @@ function loadSidebarWidth(): number {
 
 export interface PdfStore {
   // ── Loaded document ──────────────────────────────────────────────────────
-  /** Raw bytes of the currently open file (used to reload into pdf-lib) */
   fileBytes: Uint8Array | null;
-  /** PDF.js document proxy for rendering */
   pdfDoc: PDFDocumentProxy | null;
-  /** Human-readable filename shown in the title bar */
   fileName: string;
-  /** Total page count of the loaded document */
   pageCount: number;
+  /** Natural (scale=1) dimensions for every page, index 0-based */
+  pageDimensions: Array<{ width: number; height: number }>;
 
   // ── Viewer state ─────────────────────────────────────────────────────────
   currentPage: number;
-  zoom: number; // 1.0 = 100%
+  zoom: number;
   darkMode: DarkMode;
 
   // ── Search ───────────────────────────────────────────────────────────────
   searchQuery: string;
-  searchResults: number[]; // page numbers that contain a match
+  searchResults: number[];
   searchResultIndex: number;
 
   // ── UI panels ────────────────────────────────────────────────────────────
   activeTool: "none" | "search" | "metadata" | "thumbnails";
   sidebarWidth: number;
-  searchFocusToken: number; // increments each time search input should be focused
+  searchFocusToken: number;
+
+  // ── Imperative scroll signal ──────────────────────────────────────────────
+  /** Non-null when a component should scroll to this page then clear it */
+  jumpToPage: number | null;
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setFile: (bytes: Uint8Array, doc: PDFDocumentProxy, name: string) => void;
   clearFile: () => void;
+  setPageDimensions: (dims: Array<{ width: number; height: number }>) => void;
   setCurrentPage: (page: number) => void;
   setZoom: (zoom: number) => void;
   setDarkMode: (mode: DarkMode) => void;
@@ -47,6 +50,8 @@ export interface PdfStore {
   setActiveTool: (tool: PdfStore["activeTool"]) => void;
   setSidebarWidth: (w: number) => void;
   focusSearch: () => void;
+  requestJumpToPage: (page: number) => void;
+  clearJumpRequest: () => void;
 }
 
 export const usePdfStore = create<PdfStore>((set, get) => ({
@@ -54,6 +59,7 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
   pdfDoc: null,
   fileName: "",
   pageCount: 0,
+  pageDimensions: [],
 
   currentPage: 1,
   zoom: 1.0,
@@ -67,6 +73,8 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
   sidebarWidth: loadSidebarWidth(),
   searchFocusToken: 0,
 
+  jumpToPage: null,
+
   setFile: (bytes, doc, name) => {
     clearPageCache();
     set({
@@ -74,7 +82,9 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
       pdfDoc: doc,
       fileName: name,
       pageCount: doc.numPages,
+      pageDimensions: [],
       currentPage: 1,
+      jumpToPage: null,
       searchQuery: "",
       searchResults: [],
       searchResultIndex: 0,
@@ -87,11 +97,15 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
       pdfDoc: null,
       fileName: "",
       pageCount: 0,
+      pageDimensions: [],
       currentPage: 1,
+      jumpToPage: null,
       searchQuery: "",
       searchResults: [],
       searchResultIndex: 0,
     }),
+
+  setPageDimensions: (dims) => set({ pageDimensions: dims }),
 
   setCurrentPage: (page) => {
     const { pageCount } = get();
@@ -108,20 +122,19 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
     set({ searchResults: pages, searchResultIndex: index }),
 
   nextSearchResult: () => {
-    const { searchResults, searchResultIndex, setCurrentPage } = get();
+    const { searchResults, searchResultIndex } = get();
     if (!searchResults.length) return;
     const next = (searchResultIndex + 1) % searchResults.length;
     set({ searchResultIndex: next });
-    setCurrentPage(searchResults[next]);
+    get().requestJumpToPage(searchResults[next]);
   },
 
   prevSearchResult: () => {
-    const { searchResults, searchResultIndex, setCurrentPage } = get();
+    const { searchResults, searchResultIndex } = get();
     if (!searchResults.length) return;
-    const prev =
-      (searchResultIndex - 1 + searchResults.length) % searchResults.length;
+    const prev = (searchResultIndex - 1 + searchResults.length) % searchResults.length;
     set({ searchResultIndex: prev });
-    setCurrentPage(searchResults[prev]);
+    get().requestJumpToPage(searchResults[prev]);
   },
 
   setActiveTool: (tool) => set({ activeTool: tool }),
@@ -132,8 +145,16 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
     set({ sidebarWidth: clamped });
   },
 
-  focusSearch: () => set((s) => ({
-    activeTool: "search",
-    searchFocusToken: s.searchFocusToken + 1,
-  })),
+  focusSearch: () =>
+    set((s) => ({
+      activeTool: "search",
+      searchFocusToken: s.searchFocusToken + 1,
+    })),
+
+  requestJumpToPage: (page) => {
+    const { pageCount } = get();
+    set({ jumpToPage: Math.max(1, Math.min(page, pageCount)) });
+  },
+
+  clearJumpRequest: () => set({ jumpToPage: null }),
 }));
