@@ -60,11 +60,10 @@ export default function Toolbar() {
 
           <div className="page-input-group">
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               defaultValue={currentPage}
               key={currentPage}
-              min={1}
-              max={pageCount}
               onKeyDown={handlePageInput}
               aria-label="Current page"
             />
