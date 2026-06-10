@@ -1,5 +1,6 @@
-import { usePdfStore } from "./store/usePdfStore";
+import { usePdfStore, useActiveTab } from "./store/usePdfStore";
 import Toolbar from "./components/Toolbar";
+import TabBar from "./components/TabBar";
 import IconRail from "./components/IconRail";
 import Sidebar from "./components/Sidebar";
 import ViewerArea from "./components/ViewerArea";
@@ -7,7 +8,8 @@ import ViewerArea from "./components/ViewerArea";
 export default function App() {
   const activeTool   = usePdfStore((s) => s.activeTool);
   const sidebarWidth = usePdfStore((s) => s.sidebarWidth);
-  const darkMode     = usePdfStore((s) => s.darkMode);
+  const tab          = useActiveTab();
+  const darkMode     = tab?.darkMode ?? "off";
 
   const darkClass =
     darkMode === "invert" ? "dark-mode-invert" :
@@ -22,6 +24,7 @@ export default function App() {
   return (
     <div className={`app-shell ${darkClass}`} style={shellStyle}>
       <Toolbar />
+      <TabBar />
       <IconRail />
       <Sidebar />
       <ViewerArea />

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { openPdfFile } from "../utils/fileHelpers";
 import { loadPdfBytes, getPageDimensions } from "../utils/pdfEngine";
 import type { DarkMode } from "../store/usePdfStore";
@@ -7,21 +7,23 @@ import type { DarkMode } from "../store/usePdfStore";
 const ZOOM_PRESETS = [0.10, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 
 export default function Toolbar() {
-  const {
-    pdfDoc, fileName, pageCount, currentPage, zoom, darkMode,
-    setFile, setPageDimensions, setZoom, setDarkMode,
-    requestJumpToPage,
-  } = usePdfStore();
+  const tab = useActiveTab();
+  const { pdfDoc, pageCount, currentPage, zoom, darkMode } = tab ?? {
+    pdfDoc: null, pageCount: 0, currentPage: 1, zoom: 1.0, darkMode: "off" as DarkMode,
+  };
+
+  const { openNewTab, setFile, setPageDimensions, setZoom, setDarkMode, requestJumpToPage } =
+    usePdfStore.getState();
 
   const handleOpen = useCallback(async () => {
     const result = await openPdfFile();
     if (!result) return;
+    openNewTab();
     const doc = await loadPdfBytes(result.bytes);
     setFile(result.bytes, doc, result.name);
-    // Fetch natural page dimensions once after load
     const dims = await getPageDimensions(doc);
     setPageDimensions(dims);
-  }, [setFile, setPageDimensions]);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePageInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -40,15 +42,7 @@ export default function Toolbar() {
 
   return (
     <div className="toolbar">
-      {/* File open */}
       <button onClick={handleOpen}>Open PDF</button>
-
-      {fileName && (
-        <>
-          <div className="toolbar-divider" />
-          <span className="toolbar-filename">{fileName}</span>
-        </>
-      )}
 
       <div className="toolbar-spacer" />
 

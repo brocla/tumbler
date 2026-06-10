@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { renderPage } from "../utils/pdfEngine";
 
 const THUMB_SCALE = 0.18;
 
 function Thumbnail({ pageNumber }: { pageNumber: number }) {
-  const { pdfDoc, currentPage, requestJumpToPage } = usePdfStore();
+  const { pdfDoc, currentPage } = useActiveTab();
+  const requestJumpToPage = usePdfStore((s) => s.requestJumpToPage);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ function Thumbnail({ pageNumber }: { pageNumber: number }) {
 }
 
 export default function ThumbnailPanel() {
-  const pageCount = usePdfStore((s) => s.pageCount);
+  const pageCount = useActiveTab().pageCount;
 
   return (
     <div className="thumbnail-grid">

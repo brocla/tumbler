@@ -1,5 +1,5 @@
 import { useEffect, useRef, useLayoutEffect, useCallback, createRef } from "react";
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { prefetchPages } from "../utils/pdfEngine";
 import { PAGE_GAP, VIEWER_PADDING_TOP } from "../utils/viewerConstants";
 import PageSlot from "./PageSlot";
@@ -21,14 +21,22 @@ function scrollTopForPage(
 }
 
 export default function ContinuousViewer() {
+  const tab = useActiveTab();
   const {
     pdfDoc, pageCount, pageDimensions, currentPage, zoom, searchQuery,
-    setCurrentPage, setZoom, focusSearch,
-    jumpToPage, clearJumpRequest, requestJumpToPage,
-  } = usePdfStore();
+    jumpToPage, scrollTop: savedScrollTop,
+  } = tab;
+
+  const activeTabId    = usePdfStore((s) => s.activeTabId);
+  const setCurrentPage = usePdfStore((s) => s.setCurrentPage);
+  const setZoom        = usePdfStore((s) => s.setZoom);
+  const focusSearch    = usePdfStore((s) => s.focusSearch);
+  const requestJumpToPage = usePdfStore((s) => s.requestJumpToPage);
+  const clearJumpRequest  = usePdfStore((s) => s.clearJumpRequest);
+  const saveScrollTop     = usePdfStore((s) => s.saveScrollTop);
 
   const scrollRef   = useRef<HTMLDivElement>(null);
-  const anchorPage  = useRef<number>(1);   // page captured before zoom change
+  const anchorPage  = useRef<number>(1);
   const prevZoom    = useRef<number>(zoom);
 
   // One ref per page slot — stable across renders
@@ -37,9 +45,28 @@ export default function ContinuousViewer() {
     pageRefs.current = Array.from({ length: pageCount }, () => createRef<HTMLDivElement>());
   }
 
+  // ── Save scroll position on unmount (tab switch / close) ─────────────────
+  useEffect(() => {
+    const tabId = activeTabId;
+    return () => {
+      if (scrollRef.current) {
+        saveScrollTop(tabId, scrollRef.current.scrollTop);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — captures tabId/saveScrollTop at mount time
+
+  // ── Restore scroll position after pageDimensions arrive ──────────────────
+  const hasRestoredScroll = useRef(false);
+  useLayoutEffect(() => {
+    if (hasRestoredScroll.current || !scrollRef.current || pageDimensions.length === 0) return;
+    if (savedScrollTop > 0) {
+      scrollRef.current.scrollTop = savedScrollTop;
+    }
+    hasRestoredScroll.current = true;
+  }, [pageDimensions.length, savedScrollTop]);
+
   // ── IntersectionObserver: track which page is most visible ───────────────
-  // Depends on pageDimensions.length so it re-runs after slots are rendered
-  // (pageDimensions arrives after pdfDoc, so slots don't exist on first run)
   useEffect(() => {
     if (!scrollRef.current || pageCount === 0 || pageDimensions.length === 0) return;
 
@@ -90,7 +117,7 @@ export default function ContinuousViewer() {
 
   useLayoutEffect(() => {
     if (!scrollRef.current || pageDimensions.length === 0) return;
-    if (zoom === prevZoom.current) return; // no zoom change yet
+    if (zoom === prevZoom.current) return;
     const newScrollTop = scrollTopForPage(anchorPage.current, zoom, pageDimensions);
     scrollRef.current.scrollTop = newScrollTop;
     prevZoom.current = zoom;
@@ -98,7 +125,7 @@ export default function ContinuousViewer() {
 
   // ── Wheel: Ctrl = zoom, plain = free scroll ──────────────────────────────
   const handleWheel = useCallback((e: WheelEvent) => {
-    if (!e.ctrlKey) return; // let normal scroll pass through
+    if (!e.ctrlKey) return;
     e.preventDefault();
     const factor = e.deltaY < 0 ? (1 + ZOOM_STEP) : (1 - ZOOM_STEP);
     handleZoom(factor);

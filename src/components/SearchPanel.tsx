@@ -1,17 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { searchAllPages } from "../utils/pdfEngine";
 
 export default function SearchPanel() {
-  const {
-    pdfDoc, searchQuery, searchResults, searchResultIndex,
-    setSearchQuery, setSearchResults, nextSearchResult, prevSearchResult,
-    requestJumpToPage,
-  } = usePdfStore();
+  const tab = useActiveTab();
+  const { pdfDoc, searchQuery, searchResults, searchResultIndex, searchFocusToken } = tab;
+  const { setSearchQuery, setSearchResults, nextSearchResult, prevSearchResult, requestJumpToPage } =
+    usePdfStore.getState();
 
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const searchFocusToken = usePdfStore((s) => s.searchFocusToken);
 
   // Focus and select-all every time focusSearch() is called (token increments)
   useEffect(() => {

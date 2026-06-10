@@ -14,6 +14,7 @@
   --color-danger:      #e05a5a;
 
   --toolbar-h:         42px;
+  --tabbar-h:          34px;
   --rail-w:            36px;
   --panel-w:           220px; /* overridden by inline style on .app-shell */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -37,10 +38,11 @@ html, body, #root {
 /* ── App shell ──────────────────────────────────────────────────────────── */
 .app-shell {
   display: grid;
-  grid-template-rows: var(--toolbar-h) 1fr;
+  grid-template-rows: var(--toolbar-h) var(--tabbar-h) 1fr;
   grid-template-columns: var(--rail-w) var(--panel-w) 1fr;
   grid-template-areas:
     "toolbar toolbar toolbar"
+    "tabbar  tabbar  tabbar"
     "rail    sidebar viewer";
   height: 100%;
 }
@@ -421,6 +423,88 @@ select.zoom-select {
   background: rgba(255, 210, 0, 0.35);
   border-radius: 2px;
 }
+
+/* ── Tab bar ────────────────────────────────────────────────────────────── */
+.tab-bar {
+  grid-area: tabbar;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 12px;
+  min-width: 80px;
+  max-width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  user-select: none;
+  transition: background 0.1s, color 0.1s;
+}
+.tab-chip:hover { background: var(--color-surface); color: var(--color-text); }
+
+.tab-drop-gap {
+  width: 3px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.08s;
+  align-self: stretch;
+  margin: 4px 0;
+}
+.tab-drop-gap.active { background: var(--color-accent); }
+.tab-chip.active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+.tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.tab-close {
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  background: transparent;
+}
+.tab-close:hover { background: rgba(255,255,255,0.12); color: var(--color-text); }
+
+.tab-new {
+  padding: 0 10px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  align-self: center;
+  background: transparent;
+}
+.tab-new:hover { color: var(--color-text); background: transparent; }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -1,4 +1,4 @@
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 
 type Tool = "thumbnails" | "search" | "metadata";
 
@@ -9,7 +9,8 @@ const TOOLS: { id: Tool; icon: string; label: string }[] = [
 ];
 
 export default function IconRail() {
-  const { pdfDoc, activeTool, setActiveTool, focusSearch } = usePdfStore();
+  const pdfDoc = useActiveTab()?.pdfDoc;
+  const { activeTool, setActiveTool, focusSearch } = usePdfStore();
 
   const handleClick = (id: Tool) => {
     if (!pdfDoc) return;

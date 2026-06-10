@@ -1,10 +1,11 @@
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import ContinuousViewer from "./ContinuousViewer";
 
 export default function ViewerArea() {
-  const pdfDoc = usePdfStore((s) => s.pdfDoc);
+  const activeTabId = usePdfStore((s) => s.activeTabId);
+  const tab = useActiveTab();
 
-  if (!pdfDoc) {
+  if (!tab?.pdfDoc) {
     return (
       <div className="viewer-area">
         <div className="empty-state">
@@ -16,5 +17,5 @@ export default function ViewerArea() {
     );
   }
 
-  return <ContinuousViewer />;
+  return <ContinuousViewer key={activeTabId} />;
 }

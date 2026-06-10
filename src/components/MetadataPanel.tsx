@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { usePdfStore } from "../store/usePdfStore";
+import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { readMetadata, writeMetadata, loadPdfBytes } from "../utils/pdfEngine";
 import { savePdfFile } from "../utils/fileHelpers";
 import type { PdfMetadata } from "../utils/pdfEngine";
@@ -19,7 +19,8 @@ const READ_ONLY_FIELDS: { key: keyof PdfMetadata; label: string }[] = [
 ];
 
 export default function MetadataPanel() {
-  const { fileBytes, setFile, fileName } = usePdfStore();
+  const { fileBytes, fileName } = useActiveTab();
+  const setFile = usePdfStore((s) => s.setFile);
   const [meta, setMeta] = useState<PdfMetadata | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
