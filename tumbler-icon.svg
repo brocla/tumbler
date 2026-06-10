@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5b21b6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="1024" height="1024" rx="200" ry="200" fill="url(#bg)"/>
+
+  <!--
+    Acrobat figure: a person mid-cartwheel.
+    Defined in natural upright position, then rotated 30° clockwise
+    around the canvas centre (512, 512) to create a dynamic tumbling pose.
+
+    Natural-position key points:
+      Head      : (512, 155) r=72
+      Shoulders : y=320  arms spread to (185,155) and (839,155)
+      Hips      : (512, 535)
+      Feet      : (280, 815) and (744, 815)
+  -->
+  <g transform="rotate(30, 512, 512)"
+     stroke="white" stroke-linecap="round" stroke-linejoin="round" fill="none">
+
+    <!-- Head -->
+    <circle cx="512" cy="155" r="72" fill="white" stroke="none"/>
+
+    <!-- Torso -->
+    <line x1="512" y1="227" x2="512" y2="535" stroke-width="62"/>
+
+    <!-- Left arm (reaching up) -->
+    <line x1="512" y1="320" x2="230" y2="130" stroke-width="54"/>
+
+    <!-- Right arm (reaching out to the side, lower angle — planting arm) -->
+    <line x1="512" y1="320" x2="850" y2="390" stroke-width="54"/>
+
+    <!-- Left leg -->
+    <line x1="512" y1="535" x2="280" y2="815" stroke-width="54"/>
+
+    <!-- Right leg -->
+    <line x1="512" y1="535" x2="744" y2="815" stroke-width="54"/>
+
+  </g>
+</svg>
