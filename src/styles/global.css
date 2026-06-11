@@ -23,6 +23,20 @@
   --radius-md: 6px;
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg:          #f0f0f0;
+    --color-surface:     #ffffff;
+    --color-surface-2:   #e4e4e4;
+    --color-border:      rgba(0,0,0,0.12);
+    --color-text:        #1a1a1a;
+    --color-text-muted:  #666;
+    --color-accent:      #2563eb;
+    --color-accent-dim:  rgba(37,99,235,0.12);
+    --color-danger:      #dc2626;
+  }
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;
