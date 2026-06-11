@@ -13,6 +13,7 @@ export function useSidebarResize() {
   const dragging = useRef(false);
   const startX   = useRef(0);
   const startW   = useRef(0);
+  const rafId    = useRef<number | null>(null);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -26,8 +27,12 @@ export function useSidebarResize() {
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return;
       const next = Math.max(150, Math.min(500, startW.current + (e.clientX - startX.current)));
-      // Mutate CSS var directly — no React re-render on every pixel
-      document.documentElement.style.setProperty("--panel-w", `${next}px`);
+      // Throttle CSS var mutation to one write per animation frame
+      if (rafId.current !== null) cancelAnimationFrame(rafId.current);
+      rafId.current = requestAnimationFrame(() => {
+        document.documentElement.style.setProperty("--panel-w", `${next}px`);
+        rafId.current = null;
+      });
     };
 
     const onUp = (e: MouseEvent) => {
@@ -43,6 +48,7 @@ export function useSidebarResize() {
     return () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup",   onUp);
+      if (rafId.current !== null) cancelAnimationFrame(rafId.current);
     };
   }, [setSidebarWidth]);
 

@@ -19,21 +19,21 @@ const READ_ONLY_FIELDS: { key: keyof PdfMetadata; label: string }[] = [
 ];
 
 export default function MetadataPanel() {
-  const { fileBytes, fileName } = useActiveTab();
+  const { fileBytes, fileName, metadataDirty } = useActiveTab();
   const setFile = usePdfStore((s) => s.setFile);
+  const setMetadataDirty = usePdfStore((s) => s.setMetadataDirty);
   const [meta, setMeta] = useState<PdfMetadata | null>(null);
-  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!fileBytes) { setMeta(null); return; }
     readMetadata(fileBytes).then(setMeta).catch(console.error);
-    setDirty(false);
-  }, [fileBytes]);
+    setMetadataDirty(false);
+  }, [fileBytes, setMetadataDirty]);
 
   const handleChange = (key: keyof PdfMetadata, value: string) => {
     setMeta((prev) => prev ? { ...prev, [key]: value } : prev);
-    setDirty(true);
+    setMetadataDirty(true);
   };
 
   const handleSave = async () => {
@@ -46,7 +46,7 @@ export default function MetadataPanel() {
         // Reload the updated bytes into the store
         const newDoc = await loadPdfBytes(updated);
         setFile(updated, newDoc, fileName);
-        setDirty(false);
+        setMetadataDirty(false);
       }
     } finally {
       setSaving(false);
@@ -84,7 +84,7 @@ export default function MetadataPanel() {
         ))}
       </div>
 
-      {dirty && (
+      {metadataDirty && (
         <button className="accent" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save metadata"}
         </button>

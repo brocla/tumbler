@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { ZOOM_MIN, ZOOM_MAX } from "../utils/zoomConstants";
+import { clearPageCacheForDoc } from "../utils/pageCache";
 
 export type DarkMode = "off" | "invert" | "sepia";
 
@@ -24,6 +26,9 @@ export interface TabState {
   searchResultIndex: number;
   searchFocusToken: number;
   jumpToPage: number | null;
+  isLoading: boolean;
+  metadataDirty: boolean;
+  zoomMode: "numeric" | "fit-width" | "fit-page";
 }
 
 function newTab(): TabState {
@@ -43,6 +48,9 @@ function newTab(): TabState {
     searchResultIndex: 0,
     searchFocusToken: 0,
     jumpToPage: null,
+    isLoading: false,
+    metadataDirty: false,
+    zoomMode: "numeric",
   };
 }
 
@@ -69,14 +77,17 @@ export interface PdfStore {
   setPageDimensions: (dims: Array<{ width: number; height: number }>) => void;
   setCurrentPage: (page: number) => void;
   setZoom: (zoom: number) => void;
+  setZoomMode: (mode: TabState["zoomMode"]) => void;
   setDarkMode: (mode: DarkMode) => void;
   setSearchQuery: (q: string) => void;
-  setSearchResults: (pages: number[], index: number) => void;
+  setSearchResults: (pages: number[], index: number, tabId?: string) => void;
   nextSearchResult: () => void;
   prevSearchResult: () => void;
   requestJumpToPage: (page: number) => void;
   clearJumpRequest: () => void;
   focusSearch: () => void;
+  setLoading: (v: boolean) => void;
+  setMetadataDirty: (dirty: boolean) => void;
 
   // ── Global actions ──────────────────────────────────────────────────────
   setActiveTool: (tool: PdfStore["activeTool"]) => void;
@@ -115,6 +126,12 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
   },
 
   closeTab: (id) => {
+    // Release resources eagerly before removing from state
+    const closing = get().tabs.find((t) => t.id === id);
+    if (closing?.pdfDoc) {
+      clearPageCacheForDoc(closing.pdfDoc.fingerprints[0] ?? "");
+      closing.pdfDoc.destroy();
+    }
     set((s) => {
       const remaining = s.tabs.filter((t) => t.id !== id);
       if (remaining.length === 0) {
@@ -181,41 +198,60 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
   setPageDimensions: (dims) => patchActive(set, get, { pageDimensions: dims }),
 
   setCurrentPage: (page) => {
-    const tab = get().tabs.find((t) => t.id === get().activeTabId)!;
+    const tab = get().tabs.find((t) => t.id === get().activeTabId);
+    if (!tab) return;
     patchActive(set, get, { currentPage: Math.max(1, Math.min(page, tab.pageCount)) });
   },
 
-  setZoom: (zoom) => patchActive(set, get, { zoom: Math.max(0.10, Math.min(zoom, 4.0)) }),
+  setZoom: (zoom) => patchActive(set, get, {
+    zoom: Math.max(ZOOM_MIN, Math.min(zoom, ZOOM_MAX)),
+    zoomMode: "numeric",
+  }),
+
+  setZoomMode: (mode) => patchActive(set, get, { zoomMode: mode }),
 
   setDarkMode: (mode) => patchActive(set, get, { darkMode: mode }),
 
   setSearchQuery: (q) => patchActive(set, get, { searchQuery: q }),
 
-  setSearchResults: (pages, index) =>
-    patchActive(set, get, { searchResults: pages, searchResultIndex: index }),
+  setSearchResults: (pages, index, tabId) => {
+    // Use the caller-supplied tabId when provided (async search started on a
+    // different tab than the one that is currently active).
+    const targetId = tabId ?? get().activeTabId;
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === targetId ? { ...t, searchResults: pages, searchResultIndex: index } : t
+      ),
+    }));
+  },
 
   nextSearchResult: () => {
-    const tab = get().tabs.find((t) => t.id === get().activeTabId)!;
-    if (!tab.searchResults.length) return;
+    const tab = get().tabs.find((t) => t.id === get().activeTabId);
+    if (!tab || !tab.searchResults.length) return;
     const next = (tab.searchResultIndex + 1) % tab.searchResults.length;
     patchActive(set, get, { searchResultIndex: next });
     get().requestJumpToPage(tab.searchResults[next]);
   },
 
   prevSearchResult: () => {
-    const tab = get().tabs.find((t) => t.id === get().activeTabId)!;
-    if (!tab.searchResults.length) return;
+    const tab = get().tabs.find((t) => t.id === get().activeTabId);
+    if (!tab || !tab.searchResults.length) return;
     const prev = (tab.searchResultIndex - 1 + tab.searchResults.length) % tab.searchResults.length;
     patchActive(set, get, { searchResultIndex: prev });
     get().requestJumpToPage(tab.searchResults[prev]);
   },
 
   requestJumpToPage: (page) => {
-    const tab = get().tabs.find((t) => t.id === get().activeTabId)!;
+    const tab = get().tabs.find((t) => t.id === get().activeTabId);
+    if (!tab) return;
     patchActive(set, get, { jumpToPage: Math.max(1, Math.min(page, tab.pageCount)) });
   },
 
   clearJumpRequest: () => patchActive(set, get, { jumpToPage: null }),
+
+  setLoading: (v) => patchActive(set, get, { isLoading: v }),
+
+  setMetadataDirty: (dirty) => patchActive(set, get, { metadataDirty: dirty }),
 
   focusSearch: () => {
     const { activeTabId } = get();

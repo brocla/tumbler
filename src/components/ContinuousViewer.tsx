@@ -2,9 +2,9 @@ import { useEffect, useRef, useLayoutEffect, useCallback, createRef } from "reac
 import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { prefetchPages } from "../utils/pdfEngine";
 import { PAGE_GAP, VIEWER_PADDING_TOP } from "../utils/viewerConstants";
+import { ZOOM_STEP } from "../utils/zoomConstants";
 import PageSlot from "./PageSlot";
 
-const ZOOM_STEP   = 0.12;
 const RENDER_RADIUS = 2;
 
 /** Sum of slot heights + gaps above a given 1-indexed page at the current zoom. */
@@ -23,8 +23,8 @@ function scrollTopForPage(
 export default function ContinuousViewer() {
   const tab = useActiveTab();
   const {
-    pdfDoc, pageCount, pageDimensions, currentPage, zoom, searchQuery,
-    jumpToPage, scrollTop: savedScrollTop,
+    pdfDoc, pageCount, pageDimensions, currentPage, zoom, zoomMode, searchQuery,
+    jumpToPage, scrollTop: savedScrollTop, isLoading,
   } = tab;
 
   const activeTabId    = usePdfStore((s) => s.activeTabId);
@@ -65,6 +65,36 @@ export default function ContinuousViewer() {
     }
     hasRestoredScroll.current = true;
   }, [pageDimensions.length, savedScrollTop]);
+
+  // ── Fit zoom: recompute when mode or dimensions change, or viewer resizes ─
+  useLayoutEffect(() => {
+    if (zoomMode === "numeric" || !scrollRef.current || pageDimensions.length === 0) return;
+    const el = scrollRef.current;
+    const dim = pageDimensions[Math.min(currentPage, pageDimensions.length) - 1];
+
+    const computeFitZoom = () => {
+      const fitW = el.clientWidth  / dim.width;
+      const fitH = Math.min(el.clientWidth / dim.width, el.clientHeight / dim.height);
+      // setZoom would reset zoomMode to "numeric", so patch zoom directly
+      usePdfStore.getState().setZoomMode(zoomMode); // keep mode
+      const target = zoomMode === "fit-width" ? fitW : fitH;
+      // Bypass setZoom's mode reset by patching via internal patchActive equivalent
+      usePdfStore.setState((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === s.activeTabId
+            ? { ...t, zoom: Math.max(0.10, Math.min(target, 4.0)) }
+            : t
+        ),
+      }));
+    };
+
+    computeFitZoom();
+
+    const ro = new ResizeObserver(computeFitZoom);
+    ro.observe(el);
+    return () => ro.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomMode, pageDimensions, currentPage]);
 
   // ── IntersectionObserver: track which page is most visible ───────────────
   useEffect(() => {
@@ -159,6 +189,10 @@ export default function ContinuousViewer() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [currentPage, requestJumpToPage]);
+
+  if (isLoading) {
+    return <div className="viewer-area viewer-loading">Opening…</div>;
+  }
 
   if (!pdfDoc || pageDimensions.length === 0) {
     return <div className="viewer-area" ref={scrollRef} />;

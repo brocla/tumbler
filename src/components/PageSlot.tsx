@@ -1,4 +1,4 @@
-import { useEffect, useRef, forwardRef } from "react";
+import { useEffect, useRef, useState, forwardRef } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { renderPage, renderTextLayer } from "../utils/pdfEngine";
 
@@ -23,22 +23,25 @@ const PageSlot = forwardRef<HTMLDivElement, PageSlotProps>(function PageSlot(
   const textLayerRef      = useRef<HTMLDivElement>(null);
   const highlightLayerRef = useRef<HTMLDivElement>(null);
 
+  const [renderError, setRenderError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isInRenderWindow || !canvasRef.current || !textLayerRef.current || !highlightLayerRef.current) return;
     let cancelled = false;
+    setRenderError(null);
 
-    renderPage(pdfDoc, pageNumber, canvasRef.current, zoom)
+    const canvas    = canvasRef.current;
+    const textLayer = textLayerRef.current;
+    const hlLayer   = highlightLayerRef.current;
+
+    renderPage(pdfDoc, pageNumber, canvas, zoom)
       .then(() => {
         if (cancelled) return;
-        return renderTextLayer(
-          pdfDoc, pageNumber,
-          textLayerRef.current!,
-          highlightLayerRef.current!,
-          zoom, searchQuery
-        );
+        return renderTextLayer(pdfDoc, pageNumber, textLayer, hlLayer, zoom, searchQuery);
       })
       .catch((err) => {
-        if (!cancelled) console.error(`Render error page ${pageNumber}:`, err);
+        if (!cancelled) setRenderError("Page failed to render");
+        console.error(`Render error page ${pageNumber}:`, err);
       });
 
     return () => { cancelled = true; };
@@ -52,11 +55,15 @@ const PageSlot = forwardRef<HTMLDivElement, PageSlotProps>(function PageSlot(
       style={{ width: displayW, height: displayH }}
     >
       {isInRenderWindow ? (
-        <>
-          <canvas ref={canvasRef} aria-label={`Page ${pageNumber}`} />
-          <div ref={textLayerRef}      className="textLayer" />
-          <div ref={highlightLayerRef} className="highlightLayer" />
-        </>
+        renderError ? (
+          <div className="page-error" role="alert">{renderError}</div>
+        ) : (
+          <>
+            <canvas ref={canvasRef} aria-label={`Page ${pageNumber}`} />
+            <div ref={textLayerRef}      className="textLayer" />
+            <div ref={highlightLayerRef} className="highlightLayer" />
+          </>
+        )
       ) : (
         <div className="page-placeholder" style={{ width: displayW, height: displayH }} />
       )}

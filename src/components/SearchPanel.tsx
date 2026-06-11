@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { searchAllPages } from "../utils/pdfEngine";
 
+const PAGE_SIZE = 20;
+
 export default function SearchPanel() {
   const tab = useActiveTab();
   const { pdfDoc, searchQuery, searchResults, searchResultIndex, searchFocusToken } = tab;
@@ -9,11 +11,22 @@ export default function SearchPanel() {
     usePdfStore.getState();
 
   const [loading, setLoading] = useState(false);
+  const [listPage, setListPage] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Reset list page whenever results change
+  useEffect(() => { setListPage(0); }, [searchResults]);
+
+  // Ensure the active result is visible in the current list page
+  useEffect(() => {
+    if (searchResults.length === 0) return;
+    const targetPage = Math.floor(searchResultIndex / PAGE_SIZE);
+    setListPage(targetPage);
+  }, [searchResultIndex, searchResults.length]);
 
   // Focus and select-all every time focusSearch() is called (token increments)
   useEffect(() => {
-    if (searchFocusToken === 0) return; // skip initial render
+    if (searchFocusToken === 0) return;
     const input = inputRef.current;
     if (!input) return;
     input.focus();
@@ -26,12 +39,16 @@ export default function SearchPanel() {
       setSearchResults([], 0);
       return;
     }
+    const searchTabId = usePdfStore.getState().activeTabId;
     setLoading(true);
     const pages = await searchAllPages(pdfDoc, q);
-    setSearchResults(pages, 0);
+    setSearchResults(pages, 0, searchTabId);
     if (pages.length) requestJumpToPage(pages[0]);
     setLoading(false);
   };
+
+  const totalListPages = Math.ceil(searchResults.length / PAGE_SIZE);
+  const visibleResults = searchResults.slice(listPage * PAGE_SIZE, (listPage + 1) * PAGE_SIZE);
 
   return (
     <div className="search-panel">
@@ -67,20 +84,45 @@ export default function SearchPanel() {
       )}
 
       {searchResults.length > 0 && (
-        <div className="search-page-list">
-          {searchResults.map((page, idx) => (
-            <div
-              key={page}
-              className={`search-page-item ${idx === searchResultIndex ? "active" : ""}`}
-              onClick={() => {
-                usePdfStore.getState().setSearchResults(searchResults, idx);
-                requestJumpToPage(page);
-              }}
-            >
-              Page {page}
+        <>
+          <div className="search-page-list">
+            {visibleResults.map((page, i) => {
+              const idx = listPage * PAGE_SIZE + i;
+              return (
+                <div
+                  key={page}
+                  className={`search-page-item ${idx === searchResultIndex ? "active" : ""}`}
+                  onClick={() => {
+                    usePdfStore.getState().setSearchResults(searchResults, idx);
+                    requestJumpToPage(page);
+                  }}
+                >
+                  Page {page}
+                </div>
+              );
+            })}
+          </div>
+
+          {totalListPages > 1 && (
+            <div className="search-list-pager">
+              <button
+                onClick={() => setListPage((p) => p - 1)}
+                disabled={listPage === 0}
+                aria-label="Previous results page"
+              >
+                ‹
+              </button>
+              <span>{listPage + 1} / {totalListPages}</span>
+              <button
+                onClick={() => setListPage((p) => p + 1)}
+                disabled={listPage >= totalListPages - 1}
+                aria-label="Next results page"
+              >
+                ›
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

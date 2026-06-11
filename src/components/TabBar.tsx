@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { usePdfStore } from "../store/usePdfStore";
 
 /** Compute which gap index (0 = before first, N = after last) the cursor is in. */
@@ -47,6 +48,19 @@ export default function TabBar() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
+  const handleClose = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const tab = usePdfStore.getState().tabs.find((t) => t.id === id);
+    if (tab?.metadataDirty) {
+      const ok = await confirm(
+        "This tab has unsaved metadata changes. Close anyway?",
+        { title: "Unsaved Changes" }
+      );
+      if (!ok) return;
+    }
+    closeTab(id);
+  };
+
   return (
     <div className="tab-bar">
       {tabs.flatMap((tab, i) => [
@@ -62,10 +76,13 @@ export default function TabBar() {
           onClick={() => { if (!didMove.current) switchTab(tab.id); }}
           title={tab.fileName}
         >
-          <span className="tab-title">{tab.fileName}</span>
+          <span className="tab-title">
+            {tab.fileName}
+            {tab.metadataDirty ? " •" : ""}
+          </span>
           <button
             className="tab-close"
-            onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+            onClick={(e) => handleClose(e, tab.id)}
             aria-label="Close tab"
           >
             ×

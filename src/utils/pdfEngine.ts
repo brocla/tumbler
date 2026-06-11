@@ -35,12 +35,17 @@ export async function loadPdfBytes(bytes: Uint8Array) {
 export async function getPageDimensions(
   doc: pdfjsLib.PDFDocumentProxy
 ): Promise<Array<{ width: number; height: number }>> {
+  const US_LETTER = { width: 612, height: 792 };
   const dims: Array<{ width: number; height: number }> = [];
   for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const vp = page.getViewport({ scale: 1 });
-    dims.push({ width: vp.width, height: vp.height });
-    page.cleanup();
+    try {
+      const page = await doc.getPage(i);
+      const vp = page.getViewport({ scale: 1 });
+      dims.push({ width: vp.width, height: vp.height });
+      page.cleanup();
+    } catch {
+      dims.push(US_LETTER);
+    }
   }
   return dims;
 }
@@ -48,34 +53,17 @@ export async function getPageDimensions(
 // ---------------------------------------------------------------------------
 // Page render cache
 //
-// Keys are "docId:page:zoom". docId is the fingerprint from PDF.js so the
-// cache is automatically scoped to the current document — opening a new file
-// produces a different fingerprint and old entries become unreachable until
-// evicted. Max 20 entries (LRU-ish via insertion order).
+// Keys are "docId:page:zoom:dpr". docId is the fingerprint from PDF.js so the
+// cache is automatically scoped to the current document. Max 20 entries
+// (LRU-ish via insertion order). Cache lives in pageCache.ts so the store can
+// import clearPageCacheForDoc without pulling in pdfjs-dist.
 // ---------------------------------------------------------------------------
 
-const PAGE_CACHE = new Map<string, ImageBitmap>();
-const MAX_CACHE_SIZE = 20;
+import { PAGE_CACHE, cacheSet, clearPageCache, clearPageCacheForDoc } from "./pageCache";
+export { clearPageCache, clearPageCacheForDoc };
 
-function cacheKey(docFingerprint: string, page: number, zoom: number) {
-  return `${docFingerprint}:${page}:${zoom}`;
-}
-
-function cacheSet(key: string, bitmap: ImageBitmap) {
-  if (PAGE_CACHE.size >= MAX_CACHE_SIZE) {
-    // Evict the oldest entry (first inserted)
-    const oldest = PAGE_CACHE.keys().next().value;
-    if (oldest !== undefined) {
-      PAGE_CACHE.get(oldest)?.close();
-      PAGE_CACHE.delete(oldest);
-    }
-  }
-  PAGE_CACHE.set(key, bitmap);
-}
-
-export function clearPageCache() {
-  for (const bmp of PAGE_CACHE.values()) bmp.close();
-  PAGE_CACHE.clear();
+function cacheKey(docFingerprint: string, page: number, zoom: number, dpr: number) {
+  return `${docFingerprint}:${page}:${zoom}:${dpr}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,18 +92,22 @@ export async function renderPage(
   canvas: HTMLCanvasElement,
   scale: number
 ) {
-  const fp = doc.fingerprints[0] ?? "";
-  const key = cacheKey(fp, pageNumber, scale);
+  const dpr = window.devicePixelRatio || 1;
+  const fp  = doc.fingerprints[0] ?? "";
+  const key = cacheKey(fp, pageNumber, scale, dpr);
   let bitmap = PAGE_CACHE.get(key);
 
   if (!bitmap) {
-    bitmap = await renderToImageBitmap(doc, pageNumber, scale);
+    bitmap = await renderToImageBitmap(doc, pageNumber, scale * dpr);
     cacheSet(key, bitmap);
   }
 
   const ctx = canvas.getContext("2d")!;
-  canvas.width = bitmap.width;
+  canvas.width  = bitmap.width;
   canvas.height = bitmap.height;
+  // Constrain to CSS pixel size so the browser doesn't upscale the canvas
+  canvas.style.width  = `${Math.round(bitmap.width  / dpr)}px`;
+  canvas.style.height = `${Math.round(bitmap.height / dpr)}px`;
   ctx.drawImage(bitmap, 0, 0);
 }
 
@@ -126,14 +118,15 @@ export function prefetchPages(
   scale: number,
   radius = 2
 ) {
-  const fp = doc.fingerprints[0] ?? "";
+  const dpr = window.devicePixelRatio || 1;
+  const fp  = doc.fingerprints[0] ?? "";
   const lo = Math.max(1, centerPage - radius);
   const hi = Math.min(doc.numPages, centerPage + radius);
   for (let p = lo; p <= hi; p++) {
     if (p === centerPage) continue;
-    const key = cacheKey(fp, p, scale);
+    const key = cacheKey(fp, p, scale, dpr);
     if (!PAGE_CACHE.has(key)) {
-      renderToImageBitmap(doc, p, scale)
+      renderToImageBitmap(doc, p, scale * dpr)
         .then((bmp) => cacheSet(key, bmp))
         .catch(() => { /* prefetch errors are non-fatal */ });
     }

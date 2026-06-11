@@ -1,11 +1,12 @@
+import { LayoutGrid, Search, Info, type LucideIcon } from "lucide-react";
 import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 
 type Tool = "thumbnails" | "search" | "metadata";
 
-const TOOLS: { id: Tool; icon: string; label: string }[] = [
-  { id: "thumbnails", icon: "▦", label: "Pages"         },
-  { id: "search",     icon: "🔍", label: "Search (Ctrl+F)" },
-  { id: "metadata",   icon: "ℹ",  label: "Document info" },
+const TOOLS: { id: Tool; Icon: LucideIcon; label: string }[] = [
+  { id: "thumbnails", Icon: LayoutGrid, label: "Pages"            },
+  { id: "search",     Icon: Search,     label: "Search (Ctrl+F)"  },
+  { id: "metadata",   Icon: Info,       label: "Document info"    },
 ];
 
 export default function IconRail() {
@@ -15,7 +16,6 @@ export default function IconRail() {
   const handleClick = (id: Tool) => {
     if (!pdfDoc) return;
     if (activeTool === id) {
-      // Toggle off — close the panel
       setActiveTool("none");
     } else if (id === "search") {
       focusSearch();
@@ -26,7 +26,7 @@ export default function IconRail() {
 
   return (
     <div className="icon-rail" role="toolbar" aria-label="Panel switcher">
-      {TOOLS.map(({ id, icon, label }) => (
+      {TOOLS.map(({ id, Icon, label }) => (
         <button
           key={id}
           className={`icon-rail-btn ${activeTool === id ? "active" : ""}`}
@@ -36,7 +36,7 @@ export default function IconRail() {
           onClick={() => handleClick(id)}
           disabled={!pdfDoc}
         >
-          {icon}
+          <Icon size={18} />
         </button>
       ))}
     </div>

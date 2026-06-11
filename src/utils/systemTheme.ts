@@ -13,6 +13,9 @@ export async function applySystemAccentColor(): Promise<void> {
     return;
   }
 
+  // Reject anything that isn't exactly #rrggbb (6 lowercase/uppercase hex digits).
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+
   const n = parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 0xff;
   const g = (n >> 8)  & 0xff;
