@@ -1,8 +1,24 @@
 use tauri::Manager;
 
-/// All Tauri commands live here. Phase 1 only needs the frontend to do
-/// heavy lifting via PDF.js / pdf-lib in JS, so the Rust side is thin.
-/// Future phases can add commands here for things like native file watching.
+#[cfg(target_os = "windows")]
+fn read_windows_accent() -> Option<String> {
+    use windows::UI::ViewManagement::{UIColorType, UISettings};
+    let settings = UISettings::new().ok()?;
+    let color = settings.GetColorValue(UIColorType::Accent).ok()?;
+    Some(format!("#{:02x}{:02x}{:02x}", color.R, color.G, color.B))
+}
+
+#[tauri::command]
+fn get_accent_color() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        read_windows_accent().unwrap_or_else(|| "#5b8af0".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "#5b8af0".to_string()
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,7 +34,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![])
+        .invoke_handler(tauri::generate_handler![get_accent_color])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

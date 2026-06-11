@@ -174,7 +174,7 @@ html.sidebar-resizing * {
 }
 
 .sidebar-resize-handle:hover {
-  background: rgba(91, 138, 240, 0.3);
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* ── Viewer ─────────────────────────────────────────────────────────────── */
@@ -274,10 +274,10 @@ button.icon-btn {
 button.accent {
   background: var(--color-accent-dim);
   color: var(--color-accent);
-  border: 1px solid rgba(91,138,240,0.3);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
-button.accent:hover { background: rgba(91,138,240,0.25); }
+button.accent:hover { background: color-mix(in srgb, var(--color-accent) 25%, transparent); }
 
 /* ── Inputs ─────────────────────────────────────────────────────────────── */
 input[type="text"],
@@ -347,7 +347,7 @@ input:focus { border-color: var(--color-accent); }
   transition: border-color 0.15s;
 }
 
-.thumbnail-item:hover { border-color: rgba(91,138,240,0.4); }
+.thumbnail-item:hover { border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); }
 .thumbnail-item.active { border-color: var(--color-accent); }
 .thumbnail-item canvas { border-radius: 2px; }
 .thumbnail-item span { font-size: 11px; color: var(--color-text-muted); }
@@ -525,3 +525,46 @@ select.zoom-select {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* ── High contrast (Windows Accessibility themes) ───────────────────────── */
+@media (prefers-contrast: more) {
+  :root {
+    --color-bg:         Canvas;
+    --color-surface:    Canvas;
+    --color-surface-2:  Canvas;
+    --color-border:     ButtonText;
+    --color-text:       CanvasText;
+    --color-text-muted: CanvasText;
+    --color-accent:     Highlight;
+    --color-accent-dim: transparent;
+    --color-danger:     LinkText;
+  }
+
+  .toolbar, .icon-rail, .sidebar, .tab-bar {
+    border-color: ButtonText;
+  }
+
+  button:hover, button:active {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .icon-rail-btn.active,
+  .tab-chip.active,
+  .search-page-item.active {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  /* Replace shadow with a visible outline on page slots */
+  .page-slot {
+    box-shadow: none;
+    outline: 1px solid ButtonText;
+  }
+
+  ::-webkit-scrollbar-thumb { background: ButtonText; }
+
+  /* Suppress PDF canvas filters — they break forced colors */
+  .dark-mode-invert .page-slot canvas,
+  .dark-mode-sepia  .page-slot canvas { filter: none; }
+}
