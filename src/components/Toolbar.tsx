@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Sun, Moon, ScrollText } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Sun, Moon, ScrollText, Printer } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { openPdfFile } from "../utils/fileHelpers";
@@ -82,6 +83,32 @@ export default function Toolbar() {
       if (!isNaN(val)) requestJumpToPage(val);
     }
   };
+
+  const handlePrint = useCallback(async () => {
+    const { tabs, activeTabId } = usePdfStore.getState();
+    const bytes = tabs.find((t) => t.id === activeTabId)?.fileBytes;
+    if (!bytes) return;
+    try {
+      await invoke("print_pdf", { bytes: Array.from(bytes) });
+    } catch (err) {
+      await message(
+        `Print failed.\n\nDetail: ${err instanceof Error ? err.message : String(err)}`,
+        { title: "Print Error", kind: "error" }
+      );
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Ctrl+P global shortcut ───────────────────────────────────────────────
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "p" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handlePrint();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handlePrint]);
 
   const cycleMode = () => {
     const modes: DarkMode[] = ["off", "invert", "sepia"];
@@ -198,6 +225,13 @@ export default function Toolbar() {
           {/* Dark mode cycle */}
           <button onClick={cycleMode} title={`Display: ${darkMode}`} aria-label="Toggle display mode">
             <DarkModeIcon size={16} />
+          </button>
+
+          <div className="toolbar-divider" />
+
+          {/* Print */}
+          <button className="icon-btn" onClick={handlePrint} title="Print (Ctrl+P)" aria-label="Print">
+            <Printer size={16} />
           </button>
         </>
       )}
