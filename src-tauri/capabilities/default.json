@@ -10,7 +10,7 @@
     "dialog:allow-message",
     "dialog:allow-confirm",
     { "identifier": "fs:allow-read-file", "allow": [{ "path": "**" }] },
-    "fs:allow-write-file",
+    { "identifier": "fs:allow-write-file", "allow": [{ "path": "**" }] },
     "fs:allow-read-dir",
     "fs:allow-exists",
     "shell:allow-open"

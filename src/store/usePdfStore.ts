@@ -63,6 +63,7 @@ export interface PdfStore {
   // ── Global UI (not per-tab) ─────────────────────────────────────────────
   activeTool: "none" | "search" | "metadata" | "thumbnails";
   sidebarWidth: number;
+  printDialogOpen: boolean;
 
   // ── Tab actions ─────────────────────────────────────────────────────────
   openNewTab: () => void;
@@ -92,6 +93,7 @@ export interface PdfStore {
   // ── Global actions ──────────────────────────────────────────────────────
   setActiveTool: (tool: PdfStore["activeTool"]) => void;
   setSidebarWidth: (w: number) => void;
+  setPrintDialogOpen: (v: boolean) => void;
 }
 
 // ── Helper: patch the active tab ──────────────────────────────────────────────
@@ -118,6 +120,7 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
 
   activeTool: "thumbnails",
   sidebarWidth: loadSidebarWidth(),
+  printDialogOpen: false,
 
   // ── Tab management ────────────────────────────────────────────────────────
   openNewTab: () => {
@@ -265,6 +268,8 @@ export const usePdfStore = create<PdfStore>((set, get) => ({
 
   // ── Global actions ────────────────────────────────────────────────────────
   setActiveTool: (tool) => set({ activeTool: tool }),
+
+  setPrintDialogOpen: (v) => set({ printDialogOpen: v }),
 
   setSidebarWidth: (w) => {
     const clamped = Math.max(150, Math.min(500, w));

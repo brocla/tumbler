@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Sun, Moon, ScrollText, Printer } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { usePdfStore, useActiveTab } from "../store/usePdfStore";
 import { openPdfFile } from "../utils/fileHelpers";
@@ -84,19 +83,9 @@ export default function Toolbar() {
     }
   };
 
-  const handlePrint = useCallback(async () => {
-    const { tabs, activeTabId } = usePdfStore.getState();
-    const bytes = tabs.find((t) => t.id === activeTabId)?.fileBytes;
-    if (!bytes) return;
-    try {
-      await invoke("print_pdf", { bytes: Array.from(bytes) });
-    } catch (err) {
-      await message(
-        `Print failed.\n\nDetail: ${err instanceof Error ? err.message : String(err)}`,
-        { title: "Print Error", kind: "error" }
-      );
-    }
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  const handlePrint = useCallback(() => {
+    usePdfStore.getState().setPrintDialogOpen(true);
+  }, []);
 
   // ── Ctrl+P global shortcut ───────────────────────────────────────────────
   useEffect(() => {
