@@ -8,13 +8,11 @@ import TabBar from "./components/TabBar";
 import IconRail from "./components/IconRail";
 import Sidebar from "./components/Sidebar";
 import ViewerArea from "./components/ViewerArea";
-import PrintDialog from "./components/PrintDialog";
 
 export default function App() {
-  const activeTool      = usePdfStore((s) => s.activeTool);
-  const sidebarWidth    = usePdfStore((s) => s.sidebarWidth);
-  const printDialogOpen = usePdfStore((s) => s.printDialogOpen);
-  const tab             = useActiveTab();
+  const activeTool   = usePdfStore((s) => s.activeTool);
+  const sidebarWidth = usePdfStore((s) => s.sidebarWidth);
+  const tab          = useActiveTab();
   const darkMode        = tab?.darkMode ?? "off";
 
   useEffect(() => {
@@ -60,7 +58,6 @@ export default function App() {
       <IconRail />
       <Sidebar />
       <ViewerArea />
-      {printDialogOpen && <PrintDialog />}
     </div>
   );
 }

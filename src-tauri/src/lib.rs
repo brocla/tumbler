@@ -37,19 +37,169 @@ fn get_temp_dir() -> String {
     std::env::temp_dir().to_string_lossy().into_owned()
 }
 
+// ── Print settings returned from the native dialog to the frontend ────────────
+#[derive(serde::Serialize)]
+struct PrintSettings {
+    cancelled: bool,
+    printer:   String,
+    copies:    u32,
+    all_pages: bool,
+    from_page: u32,
+    to_page:   u32,
+}
+
+// Runs on a dedicated STA thread — PrintDlgExW requires COM STA and runs its own
+// modal message loop. Tauri's main thread and worker threads are MTA (set by WebView2),
+// so we must spawn a fresh thread with explicit STA initialisation.
+#[cfg(target_os = "windows")]
+fn show_print_dialog_impl(page_count: u32, owner_hwnd: isize) -> Result<PrintSettings, String> {
+    use windows::Win32::Foundation::GlobalFree;
+    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
+    use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
+    use windows::Win32::UI::Controls::Dialogs::{
+        PrintDlgExW, DEVNAMES, PRINTDLGEXW, PRINTPAGERANGE,
+        PD_ALLPAGES, PD_NOSELECTION, PD_PAGENUMS, PD_RESULT_PRINT,
+        PD_USEDEVMODECOPIESANDCOLLATE, START_PAGE_GENERAL,
+    };
+
+    // Initialise COM as STA on this thread.
+    // S_OK (0) = success, S_FALSE (1) = already initialised — both are fine.
+    let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
+    if hr.is_err() {
+        return Err(format!("CoInitializeEx failed: HRESULT 0x{:08x}", hr.0));
+    }
+
+    let result = (|| -> Result<PrintSettings, String> {
+        let mut page_range = PRINTPAGERANGE { nFromPage: 1, nToPage: page_count };
+
+        // Pass null hDevMode/hDevNames — let the dialog allocate and populate them.
+        let mut pdx = PRINTDLGEXW {
+            lStructSize:    std::mem::size_of::<PRINTDLGEXW>() as u32,
+            hwndOwner:      windows::Win32::Foundation::HWND(owner_hwnd as *mut core::ffi::c_void),
+            Flags:          PD_ALLPAGES | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE,
+            nMinPage:       1,
+            nMaxPage:       page_count,
+            nCopies:        1,
+            lpPageRanges:   &mut page_range,
+            nMaxPageRanges: 1,
+            nPageRanges:    0,
+            nStartPage:     START_PAGE_GENERAL,
+            ..Default::default()
+        };
+
+        let call_result = unsafe { PrintDlgExW(&mut pdx) };
+
+        if let Err(e) = call_result {
+            return Err(format!("PrintDlgExW failed: {e}"));
+        }
+
+        if pdx.dwResultAction != PD_RESULT_PRINT {
+            // Free whatever the dialog allocated.
+            if !pdx.hDevMode.is_invalid() { unsafe { let _ = GlobalFree(Some(pdx.hDevMode)); } }
+            if !pdx.hDevNames.is_invalid() { unsafe { let _ = GlobalFree(Some(pdx.hDevNames)); } }
+            return Ok(PrintSettings { cancelled: true, printer: String::new(), copies: 0,
+                                       all_pages: true, from_page: 1, to_page: page_count });
+        }
+
+        // Extract printer name from DEVNAMES.
+        let printer_name = if pdx.hDevNames.is_invalid() {
+            String::new()
+        } else {
+            unsafe {
+                let base = GlobalLock(pdx.hDevNames) as *const u16;
+                let name = if base.is_null() {
+                    String::new()
+                } else {
+                    let dn = &*(base as *const DEVNAMES);
+                    let device_ptr = base.add(dn.wDeviceOffset as usize);
+                    let mut len = 0usize;
+                    while *device_ptr.add(len) != 0 { len += 1; }
+                    String::from_utf16_lossy(std::slice::from_raw_parts(device_ptr, len))
+                };
+                GlobalUnlock(pdx.hDevNames).ok();
+                name
+            }
+        };
+
+        let copies    = pdx.nCopies.max(1);
+        let all_pages = (pdx.Flags.0 & PD_PAGENUMS.0) == 0;
+        let (from_page, to_page) = if all_pages {
+            (1, page_count)
+        } else {
+            (page_range.nFromPage, page_range.nToPage)
+        };
+
+        if !pdx.hDevMode.is_invalid()  { unsafe { let _ = GlobalFree(Some(pdx.hDevMode)); } }
+        if !pdx.hDevNames.is_invalid() { unsafe { let _ = GlobalFree(Some(pdx.hDevNames)); } }
+
+        Ok(PrintSettings { cancelled: false, printer: printer_name, copies, all_pages, from_page, to_page })
+    })();
+
+    unsafe { CoUninitialize(); }
+    result
+}
+
+// The command spawns a dedicated STA thread and blocks until the dialog completes.
+#[tauri::command]
+async fn show_print_dialog(window: tauri::WebviewWindow, page_count: u32) -> Result<PrintSettings, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd_raw = window.hwnd().map_err(|e| format!("hwnd() failed: {e}"))?.0 as isize;
+        let (tx, rx) = std::sync::mpsc::channel::<Result<PrintSettings, String>>();
+        std::thread::spawn(move || {
+            tx.send(show_print_dialog_impl(page_count, hwnd_raw)).ok();
+        });
+        rx.recv().map_err(|e| format!("channel recv failed: {e}"))?
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window;
+        Err("Printing is only supported on Windows.".to_string())
+    }
+}
+
 #[cfg(target_os = "windows")]
 #[tauri::command]
-fn print_pdf_path(path: String) -> Result<(), String> {
+fn print_pdf_path(path: String, printer: String) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::Graphics::Printing::{GetDefaultPrinterW, SetDefaultPrinterW};
     use windows::Win32::UI::Shell::{ShellExecuteExW, SHELLEXECUTEINFOW};
-    use windows::core::w;
+    use windows::core::{w, PCWSTR};
 
-    let path_obj = std::path::Path::new(&path);
+    // Read the current default printer so we can restore it after printing.
+    let original_default = {
+        let mut size: u32 = 0;
+        let _ = unsafe { GetDefaultPrinterW(None, &mut size) };
+        if size == 0 {
+            String::new()
+        } else {
+            let mut buf = vec![0u16; size as usize];
+            let ok = unsafe { GetDefaultPrinterW(Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut size) };
+            if ok.as_bool() {
+                // Trim trailing null.
+                let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+                String::from_utf16_lossy(&buf[..len])
+            } else {
+                String::new()
+            }
+        }
+    };
 
-    // Encode path as null-terminated UTF-16.
-    // encode_wide() does not append a null terminator, so we chain one.
-    // Vec must stay alive for the entire ShellExecuteExW call.
-    let path_wide: Vec<u16> = path_obj
+    // Temporarily set the user's chosen printer as default.
+    let printer_pcwstr = {
+        let wide: Vec<u16> = std::ffi::OsStr::new(&printer)
+            .encode_wide().chain(std::iter::once(0)).collect();
+        // SetDefaultPrinterW copies the string, so the Vec can be temporary.
+        let ok = unsafe { SetDefaultPrinterW(PCWSTR::from_raw(wide.as_ptr())) };
+        if !ok.as_bool() {
+            return Err(format!("SetDefaultPrinterW failed for '{printer}'"));
+        }
+    };
+    let _ = printer_pcwstr;
+
+    // Use the "print" verb — proven to work with any registered PDF handler
+    // (Foxit, Edge, Adobe, etc.). It prints to the current default printer.
+    let path_wide: Vec<u16> = std::path::Path::new(&path)
         .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
@@ -57,223 +207,28 @@ fn print_pdf_path(path: String) -> Result<(), String> {
 
     let mut sei = SHELLEXECUTEINFOW {
         cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-        lpVerb: w!("print"),   // compile-time wide literal, 'static lifetime
-        lpFile: windows::core::PCWSTR::from_raw(path_wide.as_ptr()),
-        nShow: 1i32,           // SW_SHOWNORMAL — sends to default printer, no dialog
+        lpVerb: w!("print"),
+        lpFile: PCWSTR::from_raw(path_wide.as_ptr()),
+        nShow:  0i32, // SW_HIDE
         ..Default::default()
     };
 
-    // SAFETY: sei is properly initialised; path_wide is alive for this call;
-    // w!("print") is 'static; ShellExecuteExW is safe to call from any thread.
-    unsafe { ShellExecuteExW(&mut sei) }
-        .map_err(|e| format!("ShellExecuteExW failed: {e}"))
-}
+    let result = unsafe { ShellExecuteExW(&mut sei) }
+        .map_err(|e| format!("ShellExecuteExW failed: {e}"));
 
-#[cfg(not(target_os = "windows"))]
-#[tauri::command]
-fn print_pdf_path(_path: String) -> Result<(), String> {
-    Err("Printing is only supported on Windows.".to_string())
-}
-
-#[cfg(target_os = "windows")]
-#[tauri::command]
-fn enumerate_printers() -> Result<Vec<String>, String> {
-    use windows::Win32::Graphics::Printing::{
-        EnumPrintersW, PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_INFO_2W,
-    };
-
-    let flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS;
-    let mut bytes_needed: u32 = 0;
-    let mut count: u32 = 0;
-
-    // First call: get required buffer size. ERROR_INSUFFICIENT_BUFFER is expected.
-    unsafe {
-        let _ = EnumPrintersW(
-            flags,
-            windows::core::PCWSTR::null(),
-            2,
-            None,
-            &mut bytes_needed,
-            &mut count,
-        );
+    // Restore the original default printer. Ignore errors — the print job is already queued.
+    if !original_default.is_empty() {
+        let wide: Vec<u16> = std::ffi::OsStr::new(&original_default)
+            .encode_wide().chain(std::iter::once(0)).collect();
+        let _ = unsafe { SetDefaultPrinterW(PCWSTR::from_raw(wide.as_ptr())) };
     }
 
-    if bytes_needed == 0 {
-        return Ok(vec![]);
-    }
-
-    let mut buf = vec![0u8; bytes_needed as usize];
-
-    // Second call: fill the buffer.
-    unsafe {
-        EnumPrintersW(
-            flags,
-            windows::core::PCWSTR::null(),
-            2,
-            Some(buf.as_mut_slice()),
-            &mut bytes_needed,
-            &mut count,
-        )
-        .map_err(|e| format!("EnumPrintersW failed: {e}"))?;
-    }
-
-    let infos = unsafe {
-        std::slice::from_raw_parts(buf.as_ptr() as *const PRINTER_INFO_2W, count as usize)
-    };
-
-    let names = infos
-        .iter()
-        .filter(|info| !info.pPrinterName.is_null())
-        .map(|info| unsafe { info.pPrinterName.to_string() }.unwrap_or_default())
-        .collect();
-
-    Ok(names)
-}
-
-#[cfg(not(target_os = "windows"))]
-#[tauri::command]
-fn enumerate_printers() -> Result<Vec<String>, String> {
-    Err("Printer enumeration is only supported on Windows.".to_string())
-}
-
-#[cfg(target_os = "windows")]
-#[tauri::command]
-fn print_pdf_with_settings(
-    path: String,
-    printer: String,
-    duplex: u8,    // 0 = simplex, 1 = long-edge (DMDUP_VERTICAL), 2 = short-edge (DMDUP_HORIZONTAL)
-    landscape: bool,
-) -> Result<(), String> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows::Win32::Graphics::Gdi::{
-        DEVMODEW, DM_DUPLEX, DM_IN_BUFFER, DM_ORIENTATION, DM_OUT_BUFFER,
-        DMDUP_HORIZONTAL, DMDUP_SIMPLEX, DMDUP_VERTICAL,
-    };
-    use windows::Win32::Graphics::Printing::{ClosePrinter, DocumentPropertiesW, OpenPrinterW};
-    use windows::Win32::UI::Shell::{ShellExecuteExW, SHELLEXECUTEINFOW};
-    use windows::core::{w, PCWSTR};
-
-    // Encode printer name as null-terminated UTF-16.
-    let printer_wide: Vec<u16> = std::ffi::OsStr::new(&printer)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    let printer_pcwstr = PCWSTR::from_raw(printer_wide.as_ptr());
-
-    // Open a handle to the printer.
-    let mut hprinter = windows::Win32::Graphics::Printing::PRINTER_HANDLE::default();
-    unsafe {
-        OpenPrinterW(printer_pcwstr, &mut hprinter, None)
-            .map_err(|e| format!("OpenPrinterW failed: {e}"))?;
-    }
-
-    let result = (|| -> Result<(), String> {
-        // Query the DEVMODE buffer size.
-        let dm_size = unsafe {
-            DocumentPropertiesW(None, hprinter, printer_pcwstr, None, None, 0u32)
-        };
-        if dm_size <= 0 {
-            return Err(format!("DocumentPropertiesW size query returned {dm_size}"));
-        }
-        let dm_size = dm_size as usize;
-
-        let mut original_buf = vec![0u8; dm_size];
-        let mut modified_buf = vec![0u8; dm_size];
-
-        // GET current DEVMODE into original_buf.
-        let hr = unsafe {
-            DocumentPropertiesW(
-                None,
-                hprinter,
-                printer_pcwstr,
-                Some(original_buf.as_mut_ptr() as *mut DEVMODEW),
-                None,
-                DM_OUT_BUFFER.0,
-            )
-        };
-        if hr < 0 {
-            return Err(format!("DocumentPropertiesW GET failed: {hr}"));
-        }
-
-        // Copy to modified buffer and patch fields.
-        modified_buf.copy_from_slice(&original_buf);
-        let dm = unsafe { &mut *(modified_buf.as_mut_ptr() as *mut DEVMODEW) };
-
-        // dmOrientation lives inside Anonymous1 (DEVMODEW_0) → Anonymous1 (DEVMODEW_0_0).
-        // dmCopies is handled via copies param — we send one job; copies set to 1.
-        // dmDuplex is a top-level field on DEVMODEW.
-        unsafe {
-            dm.Anonymous1.Anonymous1.dmOrientation = if landscape { 2 } else { 1 }; // DMORIENT_LANDSCAPE=2, DMORIENT_PORTRAIT=1
-        }
-        dm.dmDuplex = match duplex {
-            1 => DMDUP_VERTICAL,    // long-edge
-            2 => DMDUP_HORIZONTAL,  // short-edge
-            _ => DMDUP_SIMPLEX,
-        };
-        dm.dmFields.0 |= DM_ORIENTATION.0 | DM_DUPLEX.0;
-
-        // SET the modified DEVMODE as the temporary per-user default.
-        // KNOWN TRADE-OFF: temporarily mutates printer defaults; restored immediately after.
-        let hr = unsafe {
-            DocumentPropertiesW(
-                None,
-                hprinter,
-                printer_pcwstr,
-                None,
-                Some(modified_buf.as_ptr() as *const DEVMODEW as *mut DEVMODEW),
-                DM_IN_BUFFER.0,
-            )
-        };
-        if hr < 0 {
-            return Err(format!("DocumentPropertiesW SET failed: {hr}"));
-        }
-
-        // Encode file path as null-terminated UTF-16.
-        let path_wide: Vec<u16> = std::path::Path::new(&path)
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-
-        // ShellExecuteExW "printto" hands the PDF to the Windows PDF Print Handler,
-        // which converts to XPS and sends vector content to the spooler at native
-        // printer resolution — no rasterization in the app.
-        let mut sei = SHELLEXECUTEINFOW {
-            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-            lpVerb: w!("printto"),
-            lpFile: PCWSTR::from_raw(path_wide.as_ptr()),
-            lpParameters: printer_pcwstr,
-            nShow: 0i32, // SW_HIDE
-            ..Default::default()
-        };
-
-        unsafe { ShellExecuteExW(&mut sei) }
-            .map_err(|e| format!("ShellExecuteExW failed: {e}"))?;
-
-        // Restore original DEVMODE. Intentionally ignore error — job already spooled.
-        let _ = unsafe {
-            DocumentPropertiesW(
-                None,
-                hprinter,
-                printer_pcwstr,
-                None,
-                Some(original_buf.as_ptr() as *const DEVMODEW as *mut DEVMODEW),
-                DM_IN_BUFFER.0,
-            )
-        };
-
-        Ok(())
-    })();
-
-    unsafe { let _ = ClosePrinter(hprinter); }
     result
 }
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-fn print_pdf_with_settings(
-    _path: String, _printer: String, _duplex: u8, _landscape: bool,
-) -> Result<(), String> {
+fn print_pdf_path(_path: String, _printer: String) -> Result<(), String> {
     Err("Printing is only supported on Windows.".to_string())
 }
 
@@ -303,9 +258,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-    get_accent_color, get_initial_file, get_all_args, get_temp_dir,
-    print_pdf_path, enumerate_printers, print_pdf_with_settings,
-])
+            get_accent_color, get_initial_file, get_all_args,
+            get_temp_dir, show_print_dialog, print_pdf_path,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

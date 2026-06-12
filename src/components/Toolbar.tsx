@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Sun, Moon, ScrollText, Printer } from "lucide-react";
 import { message } from "@tauri-apps/plugin-dialog";
 import { usePdfStore, useActiveTab } from "../store/usePdfStore";
+import { executePrint } from "./PrintDialog";
 import { openPdfFile } from "../utils/fileHelpers";
 import { loadPdfBytes, getPageDimensions } from "../utils/pdfEngine";
 import type { DarkMode } from "../store/usePdfStore";
@@ -83,9 +84,7 @@ export default function Toolbar() {
     }
   };
 
-  const handlePrint = useCallback(() => {
-    usePdfStore.getState().setPrintDialogOpen(true);
-  }, []);
+  const handlePrint = useCallback(() => { executePrint(); }, []);
 
   // ── Ctrl+P global shortcut ───────────────────────────────────────────────
   useEffect(() => {
