@@ -170,3 +170,20 @@ git push origin v<new-version>
 ## License
 
 MIT
+
+---
+
+## Updating the app icon
+
+Replace `tumbler.png` with a new 1024×1024 PNG, then run:
+
+```powershell
+# 1. Regenerate all icon variants (Windows, macOS, iOS, Android)
+npm run tauri -- icon tumbler.png
+
+# 2. Force Rust to recompile with the new icon
+(Get-Item "src-tauri\build.rs").LastWriteTime = Get-Date
+
+# 3. Restart the dev server
+npm run tauri dev
+```
